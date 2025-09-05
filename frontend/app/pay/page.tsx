@@ -343,8 +343,7 @@ export default function PayPage() {
         return
       }
 
-      const amount = undefined 
-      await payBill(billId, amount)
+      await payBill(billId)
     } catch (err) {
       console.error('Payment failed:', err)
       setIsProcessing(false)
@@ -353,16 +352,6 @@ export default function PayPage() {
 
   const canConfirm = Boolean((auth && hasAmount) || billId)
 
-  // Determine if this payment will be gasless for the payer
-  const isGaslessFlow = (() => {
-    // If dynamic auth present, rely on resolved tokenAddress
-    if (auth) return !!tokenAddress 
-    // Else, if we have parsed symbol
-    if (paymentData?.token) return true
-    // Else, if bill details loaded
-    if (billDetails?.token) return true
-    return false
-  })()
 
   // If on Confirm tab without any authorization or billId, show guidance
   useEffect(() => {
@@ -673,11 +662,7 @@ export default function PayPage() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Gas Fees:</span>
-                          {isGaslessFlow ? (
-                            <span className="font-semibold text-green-600">$0.00 (Gasless)</span>
-                          ) : (
-                            <span className="font-semibold">Network fee applies</span>
-                          )}
+                          <span className="font-semibold text-green-600">$0.00 (Gasless)</span>
                         </div>
                       </div>
 
@@ -690,15 +675,9 @@ export default function PayPage() {
 
                       {/* Tip banner about gaslessness */}
                       <div className="text-sm text-muted-foreground bg-muted/40 rounded-md p-3">
-                        {isGaslessFlow ? (
-                          <span>
-                            This payment is sponsored by QuikPay. Your wallet will not pay gas fees.
-                          </span>
-                        ) : (
-                          <span>
-                            All payments are gasless when using QuikPay's system.
-                          </span>
-                        )}
+                        <span>
+                          This payment is sponsored by QuikPay. Your wallet will not pay gas fees.
+                        </span>
                       </div>
 
                       <Button
