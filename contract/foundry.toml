@@ -8,11 +8,11 @@ optimizer_runs = 200
 via_ir = false
 
 [rpc_endpoints]
-mantle_testnet = "https://rpc.testnet.mantle.xyz"
-mantle_mainnet = "https://rpc.mantle.xyz"
+arbitrum_sepolia = "https://sepolia-rollup.arbitrum.io/rpc"
+arbitrum_one = "https://arb1.arbitrum.io/rpc"
 
 [etherscan]
-mantle_testnet = { key = "${API_KEY_BLOCKSCOUT}", url = "https://explorer.testnet.mantle.xyz/api" }
-mantle_mainnet = { key = "${API_KEY_BLOCKSCOUT}", url = "https://explorer.mantle.xyz/api" }
+arbitrum_sepolia = { key = "${API_KEY_ARBISCAN}", url = "https://api-sepolia.arbiscan.io/api" }
+arbitrum_one = { key = "${API_KEY_ARBISCAN}", url = "https://api.arbiscan.io/api" }
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

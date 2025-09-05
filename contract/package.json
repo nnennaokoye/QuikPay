@@ -1,14 +1,14 @@
 {
   "name": "contract",
   "version": "1.0.0",
-  "description": "Ezpay Smart Contract - Hardhat project",
+  "description": "QuikPay Smart Contract - Hardhat project",
   "private": true,
   "scripts": {
     "build": "npx hardhat compile",
     "test": "npx hardhat test",
-    "deploy": "npx hardhat run scripts/deploy.js --network mantleTestnet",
-    "deploy:testnet": "npx hardhat run scripts/deploy.js --network mantleTestnet",
-    "deploy:mainnet": "npx hardhat run scripts/deploy.js --network mantleMainnet",
+    "deploy": "npx hardhat run scripts/deploy.js --network arbitrumSepolia",
+    "deploy:testnet": "npx hardhat run scripts/deploy.js --network arbitrumSepolia",
+    "deploy:mainnet": "npx hardhat run scripts/deploy.js --network arbitrumOne",
     "clean": "npx hardhat clean",
     "verify": "npx hardhat verify"
   },

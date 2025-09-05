@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createWalletClient, http, encodePacked, keccak256, hashMessage, recoverAddress } from 'viem'
+import { createWalletClient, createPublicClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { ARBITRUM_SEPOLIA, QUIKPAY_CONTRACT_ADDRESS, QUIKPAY_ABI } from '@/lib/contract'
 
@@ -44,32 +44,83 @@ export async function POST(request: Request) {
       s: permitIn.s as `0x${string}`,
     }
 
-    // Off-chain validation of merchant authorization signature to avoid costly reverts
-    try {
-      // inner = keccak256(abi.encode(receiver, token, chainId, contractAddress))
-      const inner = keccak256(
-        encodePacked(
-          ['address', 'address', 'uint256', 'address'],
-          [auth.receiver, auth.token, auth.chainId, auth.contractAddress]
-        )
-      )
-      // Contract builds: keccak256("\x19Ethereum Signed Message:\n32" ++ inner)
-      const prefixed = hashMessage({ raw: inner })
-      const recovered = await recoverAddress({ hash: prefixed, signature: auth.signature })
-      if (recovered.toLowerCase() !== auth.receiver.toLowerCase()) {
-        return NextResponse.json({ error: 'Invalid merchant authorization signature' }, { status: 400 })
-      }
-    } catch (sigErr: any) {
-      return NextResponse.json({ error: `Authorization signature check failed: ${sigErr?.message || sigErr}` }, { status: 400 })
-    }
-
     const account = privateKeyToAccount(process.env.SPONSOR_PK as `0x${string}`)
-    const rpcUrl = process.env.RPC_URL || process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc'
+    const rpcUrl =
+      process.env.RPC_URL ||
+      process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC_URL ||
+      'https://sepolia-rollup.arbitrum.io/rpc'
     const walletClient = createWalletClient({
       account,
       chain: ARBITRUM_SEPOLIA as any,
       transport: http(rpcUrl),
     })
+
+    // Simulate first to surface precise revert reason
+    const publicClient = createPublicClient({
+      chain: ARBITRUM_SEPOLIA as any,
+      transport: http(rpcUrl),
+    })
+    // Optional sanity checks: user's balance and token permit validity
+    try {
+      // Check token balance >= value
+      const erc20Abi = [
+        { "name": "balanceOf", "type": "function", "stateMutability": "view", "inputs": [{ "name": "", "type": "address" }], "outputs": [{ "name": "", "type": "uint256" }] },
+      ] as const
+      const bal = await publicClient.readContract({
+        address: permit.token,
+        abi: erc20Abi as any,
+        functionName: 'balanceOf',
+        args: [permit.owner],
+      }) as bigint
+      if (bal < permit.value) {
+        return NextResponse.json({ error: 'Insufficient token balance for owner', details: `balance=${bal.toString()} value=${permit.value.toString()}` }, { status: 400 })
+      }
+    } catch (balErr: any) {
+      console.error('gasless-payment balance check error:', balErr)
+    }
+
+    try {
+      // Simulate ERC20Permit.permit(owner, spender, value, deadline, v, r, s)
+      const permitAbi = [
+        { "name": "permit", "type": "function", "stateMutability": "nonpayable", "inputs": [
+          { "name": "owner", "type": "address" },
+          { "name": "spender", "type": "address" },
+          { "name": "value", "type": "uint256" },
+          { "name": "deadline", "type": "uint256" },
+          { "name": "v", "type": "uint8" },
+          { "name": "r", "type": "bytes32" },
+          { "name": "s", "type": "bytes32" }
+        ], "outputs": [] }
+      ] as const
+      await publicClient.simulateContract({
+        chain: ARBITRUM_SEPOLIA as any,
+        account,
+        address: permit.token,
+        abi: permitAbi as any,
+        functionName: 'permit',
+        args: [permit.owner, QUIKPAY_CONTRACT_ADDRESS, permit.value, permit.deadline, permit.v, permit.r, permit.s],
+      })
+    } catch (permErr: any) {
+      console.error('gasless-payment token permit simulate error:', permErr)
+      const msg = permErr?.shortMessage || permErr?.message || 'Token permit simulation failed'
+      const details = permErr?.cause?.reason || permErr?.cause?.shortMessage || permErr?.cause?.message || permErr?.data
+      return NextResponse.json({ error: `Permit simulation revert: ${msg}`, details }, { status: 400 })
+    }
+    try {
+      await publicClient.simulateContract({
+        chain: ARBITRUM_SEPOLIA as any,
+        account,
+        address: QUIKPAY_CONTRACT_ADDRESS,
+        abi: QUIKPAY_ABI as any,
+        functionName: 'payDynamicERC20WithPermit',
+        args: [auth, permit],
+      })
+    } catch (simErr: any) {
+      console.error('gasless-payment simulate error:', simErr)
+      const msg = simErr?.shortMessage || simErr?.message || 'Simulation failed'
+      const details = simErr?.cause?.reason || simErr?.cause?.shortMessage || simErr?.cause?.message || simErr?.data
+      return NextResponse.json({ error: `Simulation revert: ${msg}`, details }, { status: 400 })
+    }
 
     // Call QuikPay.payDynamicERC20WithPermit(auth, permit)
     const hash = await walletClient.writeContract({
@@ -84,6 +135,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ hash })
   } catch (e: any) {
     console.error('gasless-payment error:', e)
-    return NextResponse.json({ error: e?.message || 'Unknown error' }, { status: 500 })
+    const msg = e?.shortMessage || e?.message || 'Unknown error'
+    const details = e?.cause?.reason || e?.cause?.shortMessage || e?.cause?.message || e?.data
+    return NextResponse.json({ error: msg, details }, { status: 500 })
   }
 }

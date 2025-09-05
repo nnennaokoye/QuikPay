@@ -17,8 +17,8 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: "EzPay - Gasless Crypto Payments",
-  description: "Seamless crypto payments on Mantle network with gasless transactions",
+  title: "QuikPay - Gasless Crypto Payments",
+  description: "Seamless crypto payments on Arbitrum Sepolia with gasless transactions",
   generator: "v0.app",
 }
 

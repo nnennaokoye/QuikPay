@@ -22,11 +22,6 @@ import QRCodeLib from "qrcode"
 export default function MerchantPage() {
   const { address, isConnected, chainId } = useAccount()
 
-  // Avoid hydration mismatch by rendering only after the component mounts on the client
-  const [isMounted, setIsMounted] = useState(false)
-  useEffect(() => setIsMounted(true), [])
-  // Do not early-return here; it would change the number of hooks between renders
-
   const [amount, setAmount] = useState("")
   const [token, setToken] = useState("USDC")
   const [description, setDescription] = useState("")
@@ -62,7 +57,6 @@ export default function MerchantPage() {
   }
 
   const eDynamicErc20 = parseAbiItem('event DynamicErc20Paid(address indexed receiver, address indexed payer, address indexed token, uint256 amount, uint256 timestamp)')
-  const eDynamicEth = parseAbiItem('event DynamicEthPaid(address indexed receiver, address indexed payer, uint256 amount, uint256 timestamp)')
   const eBillPaid = parseAbiItem('event BillPaid(bytes32 indexed billId, address indexed payer, address indexed receiver, address token, uint256 amount, uint256 timestamp)')
 
   const fetchOnChainHistory = async () => {
@@ -70,30 +64,22 @@ export default function MerchantPage() {
     try {
       setLoadingHistory(true)
       const latest = await publicClient.getBlockNumber()
-      // Arbitrum RPC limits eth_getLogs to 10,000 block ranges; stay safely below
+      // Use a safe block step to avoid provider range limits
       const maxLookback = BigInt(90000)
       const step = BigInt(9000)
       const startBlock = latest > maxLookback ? latest - maxLookback : BigInt(0)
 
       let erc20Logs: any[] = []
-      let ethLogs: any[] = []
       let billLogs: any[] = []
 
       const one = BigInt(1)
       for (let from = startBlock; from <= latest; from += step) {
         const to = (from + step - one) > latest ? latest : (from + step - one)
-        // Fetch 3 event types in parallel per batch
-        const [e20, eeth, ebill] = await Promise.all([
+        // Fetch 2 event types in parallel per batch
+        const [e20, ebill] = await Promise.all([
           publicClient.getLogs({
             address: QUIKPAY_CONTRACT_ADDRESS,
             event: eDynamicErc20,
-            args: { receiver: address },
-            fromBlock: from,
-            toBlock: to,
-          }),
-          publicClient.getLogs({
-            address: QUIKPAY_CONTRACT_ADDRESS,
-            event: eDynamicEth,
             args: { receiver: address },
             fromBlock: from,
             toBlock: to,
@@ -107,7 +93,6 @@ export default function MerchantPage() {
           }),
         ])
         erc20Logs = erc20Logs.concat(e20 as any)
-        ethLogs = ethLogs.concat(eeth as any)
         billLogs = billLogs.concat(ebill as any)
       }
 
@@ -128,22 +113,9 @@ export default function MerchantPage() {
             txHash: log.transactionHash as string,
           }
         }),
-        ...ethLogs.map((log: any) => ({
-          id: `${log.blockNumber.toString()}-${log.logIndex}`,
-          bn: Number(log.blockNumber),
-          li: Number(log.logIndex),
-          amount: formatUnits(log.args.amount as bigint, 18),
-          token: 'ETH',
-          description: 'Dynamic ETH payment',
-          customer: log.args.payer as string,
-          status: 'Success',
-          timestamp: new Date(Number(log.args.timestamp) * 1000).toLocaleString(),
-          txHash: log.transactionHash as string,
-        })),
         ...billLogs.map((log: any) => {
           const tAddr = (log.args.token as string).toLowerCase()
-          const isNative = tAddr === TOKENS.ETH.toLowerCase()
-          const meta = isNative ? { symbol: 'ETH', decimals: 18 } : (tokenMeta[tAddr] || { symbol: 'TOKEN', decimals: 18 })
+          const meta = tokenMeta[tAddr] || { symbol: 'TOKEN', decimals: 18 }
           return {
             id: `${log.blockNumber.toString()}-${log.logIndex}`,
             bn: Number(log.blockNumber),
@@ -245,24 +217,12 @@ export default function MerchantPage() {
               timestamp: new Date(Number(log.args.timestamp) * 1000).toLocaleString(),
               txHash: log.transactionHash as string,
             }
-          } else {
-            return {
-              id: `${log.blockNumber.toString()}-${log.logIndex}`,
-              bn: Number(log.blockNumber),
-              li: Number(log.logIndex),
-              amount: formatUnits(log.args.amount as bigint, 18),
-              token: 'ETH',
-              description: 'Dynamic ETH payment',
-              customer: log.args.payer as string,
-              status: 'Success',
-              timestamp: new Date(Number(log.args.timestamp) * 1000).toLocaleString(),
-              txHash: log.transactionHash as string,
-            }
           }
         })
+        // de-dupe by id
         setTransactionHistory(prev => {
           const ids = new Set(prev.map((x:any)=>x.id))
-          const merged = [...mapped.filter((m: any) => m && !ids.has(m.id)), ...prev]
+          const merged = [...mapped.filter(m=>m && !ids.has(m.id)), ...prev]
           merged.sort((a: any, b: any) => {
             const bnb = typeof b.bn === 'number' ? b.bn : 0
             const anb = typeof a.bn === 'number' ? a.bn : 0
@@ -286,17 +246,6 @@ export default function MerchantPage() {
         pollingInterval: 8000,
       })
       unsubs.push(un1)
-      // Subscribe ETH
-      const un2 = publicClient.watchEvent({
-        address: QUIKPAY_CONTRACT_ADDRESS,
-        event: eDynamicEth,
-        args: { receiver: address },
-        onLogs,
-        onError: (e)=>console.warn('watch eth err', e),
-        poll: true,
-        pollingInterval: 8000,
-      })
-      unsubs.push(un2)
       // Subscribe BillPaid
       const un3 = publicClient.watchEvent({
         address: QUIKPAY_CONTRACT_ADDRESS,
@@ -306,8 +255,7 @@ export default function MerchantPage() {
           if (!logs?.length) return
           const mapped = logs.map((log:any) => {
             const tAddr = (log.args.token as string).toLowerCase()
-            const isNative = tAddr === TOKENS.ETH.toLowerCase()
-            const meta = isNative ? { symbol: 'ETH', decimals: 18 } : (tokenMeta[tAddr] || { symbol: 'TOKEN', decimals: 18 })
+            const meta = tokenMeta[tAddr] || { symbol: 'TOKEN', decimals: 18 }
             return {
               id: `${log.blockNumber.toString()}-${log.logIndex}`,
               bn: Number(log.blockNumber),
@@ -350,7 +298,7 @@ export default function MerchantPage() {
   const generatePayment = async () => {
     if (!token || !isConnected || !address) return
     try {
-      const tokenAddress = token === 'USDC' ? TOKENS.USDC : token === 'USDT' ? TOKENS.USDT : token === 'WETH' ? TOKENS.WETH : TOKENS.USDC
+      const tokenAddress = token === 'USDC' ? TOKENS.USDC : token === 'USDT' ? TOKENS.USDT : TOKENS.WETH
       const selectedChainId = chainId ?? ARBITRUM_SEPOLIA.id
 
       // Build EIP-191 signed auth: keccak256(abi.encode(receiver, token, chainId, contractAddress))
@@ -360,7 +308,7 @@ export default function MerchantPage() {
       )
       const innerHash = keccak256(encoded)
 
-      // Request signature from connected wallet
+      // Request signature from connected wallet using personal_sign
       const sig = await (window as any).ethereum.request({
         method: 'personal_sign',
         params: [innerHash, address],
@@ -408,7 +356,7 @@ export default function MerchantPage() {
     } catch {}
   }
 
-  // Generate a PNG blob directly from the paymentLink using 'qrcode' (high error correction and margins)
+  // Generate a PNG blob directly from the paymentLink using 'qrcode' 
   const generatePngBlobFromLink = async (link: string): Promise<Blob> => {
     const dataUrl = await QRCodeLib.toDataURL(link, {
       errorCorrectionLevel: 'H',
@@ -627,7 +575,7 @@ export default function MerchantPage() {
                           )}
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Network:</span>
-                            <span className="font-semibold">Arbitrum</span>
+                            <span className="font-semibold">Arbitrum Sepolia</span>
                           </div>
                         </div>
                       </div>
@@ -678,23 +626,25 @@ export default function MerchantPage() {
                           </div>
                           <div className="text-right">
                             <div className="flex items-center gap-2 justify-end">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  payment.status === "Active"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-blue-100 text-blue-800"
-                                }`}
-                              >
-                                {payment.status}
-                              </span>
-                              {secondsRemaining !== undefined && (
-                                isExpired ? (
-                                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Expired</span>
-                                ) : (
-                                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                    Expires in {formatDuration(secondsRemaining)}
+                              {secondsRemaining !== undefined && isExpired ? (
+                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Expired</span>
+                              ) : (
+                                <>
+                                  <span
+                                    className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                      payment.status === "Active"
+                                        ? "bg-green-100 text-green-800"
+                                        : "bg-blue-100 text-blue-800"
+                                    }`}
+                                  >
+                                    {payment.status}
                                   </span>
-                                )
+                                  {secondsRemaining !== undefined && (
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                      Expires in {formatDuration(secondsRemaining)}
+                                    </span>
+                                  )}
+                                </>
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground mt-1">{payment.created}</p>

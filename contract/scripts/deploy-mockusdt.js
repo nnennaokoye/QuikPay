@@ -29,10 +29,10 @@ async function main() {
 
 function getExplorerUrl(chainId, address) {
   switch (chainId.toString()) {
-    case "5003":
-      return `https://explorer.sepolia.mantle.xyz/address/${address}`;
-    case "5000":
-      return `https://explorer.mantle.xyz/address/${address}`;
+    case "421614":
+      return `https://sepolia.arbiscan.io/address/${address}`;
+    case "42161":
+      return `https://arbiscan.io/address/${address}`;
     default:
       return `Chain ID ${chainId}`;
   }

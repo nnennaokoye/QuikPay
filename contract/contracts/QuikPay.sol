@@ -31,7 +31,7 @@ interface IERC20Permit {
 contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
     struct Bill {
         address receiver;
-        address token; // address(0) for ETH
+        address token; // ERC20 token address only
         uint256 amount;
         bool paid;
         bool canceled;
@@ -40,29 +40,6 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
         address payer;
     }
 
-    /**
-     * @dev Pay dynamically in ETH/MNT using a merchant-signed authorization.
-     * Merchant signs (receiver, token, chainId, contractAddress).
-     * Amount is provided by payer as msg.value (reusable QR without fixed amount).
-     * Payer pays gas. Anyone can submit.
-     */
-    function payDynamicETH(PayAuthorization calldata auth) external payable nonReentrant {
-        // Validate merchant authorization
-        if (!_verifyPayAuthorization(auth)) {
-            revert InvalidAuthorization();
-        }
-
-        // token must be native (address(0)) for ETH flow
-        require(auth.token == address(0), "Invalid token for ETH");
-        require(msg.value > 0, "No ETH sent");
-
-        (bool success, ) = payable(auth.receiver).call{value: msg.value}("");
-        if (!success) {
-            revert TransferFailed();
-        }
-
-        emit DynamicEthPaid(auth.receiver, msg.sender, msg.value, block.timestamp);
-    }
 
     /**
      * @dev Pay dynamically in ERC20 using merchant auth + payer EIP-2612 permit.
@@ -76,7 +53,7 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
         if (!_verifyPayAuthorization(auth)) {
             revert InvalidAuthorization();
         }
-        require(auth.token != address(0), "Invalid token for ERC20");
+        require(auth.token != address(0), "Invalid token address");
         require(auth.token == permit.token, "Token mismatch");
         require(permit.owner != address(0), "Invalid owner");
         require(permit.value > 0, "Invalid amount");
@@ -114,7 +91,7 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
     // Merchant-signed authorization for dynamic payments (no stored bill)
     struct PayAuthorization {
         address receiver;         // Merchant address (intended receiver)
-        address token;            // address(0) for ETH, ERC20 address otherwise
+        address token;            // ERC20 token address
         uint256 chainId;          // Target chain id
         address contractAddress;  // This contract address
         bytes signature;          // Signature by receiver (merchant)
@@ -163,14 +140,7 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
         uint256 timestamp
     );
 
-    // Events for dynamic payments
-    event DynamicEthPaid(
-        address indexed receiver,
-        address indexed payer,
-        uint256 amount,
-        uint256 timestamp
-    );
-
+    // Event for dynamic ERC20 payments
     event DynamicErc20Paid(
         address indexed receiver,
         address indexed payer,
@@ -193,7 +163,7 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
     /**
      * @dev Create a new bill with unique ID
      * @param billId Unique identifier for the bill
-     * @param token Token address (address(0) for ETH)
+     * @param token ERC20 token address
      * @param amount Amount to be paid
      */
     function createBill(
@@ -205,6 +175,9 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
             revert BillAlreadyExists();
         }
         if (amount == 0) {
+            revert InvalidAmount();
+        }
+        if (token == address(0)) {
             revert InvalidAmount();
         }
 
@@ -229,8 +202,8 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
      * @dev Pay an existing bill (standard method)
      * @param billId ID of the bill to pay
      */
-    function payBill(bytes32 billId) external payable nonReentrant {
-        _payBill(billId, msg.sender, msg.value);
+    function payBill(bytes32 billId) external nonReentrant {
+        _payBill(billId, msg.sender);
     }
 
     /**
@@ -239,7 +212,7 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
      */
     function payBillWithAuthorization(
         Authorization calldata authorization
-    ) external payable nonReentrant {
+    ) external nonReentrant {
         // Verify the authorization
         if (!_verifyAuthorization(authorization)) {
             revert InvalidAuthorization();
@@ -264,32 +237,16 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
             revert BillAlreadyPaid();
         }
 
-        // For ETH payments, the sponsor needs to send the ETH value
-        if (bill.token == address(0)) {
-            if (msg.value != bill.amount) {
-                revert InvalidAmount();
-            }
-            
-            (bool success, ) = payable(bill.receiver).call{value: bill.amount}("");
-            if (!success) {
-                revert TransferFailed();
-            }
-        } else {
-            // For ERC20, transfer from the authorizer's balance
-            if (msg.value > 0) {
-                revert InvalidAmount();
-            }
-            
-            IERC20 token = IERC20(bill.token);
-            if (token.balanceOf(authorization.authorizer) < bill.amount) {
-                revert InsufficientBalance();
-            }
-            
-            // Transfer from authorizer to receiver
-            bool success = token.transferFrom(authorization.authorizer, bill.receiver, bill.amount);
-            if (!success) {
-                revert TransferFailed();
-            }
+        // ERC20 transfer from the authorizer's balance
+        IERC20 token = IERC20(bill.token);
+        if (token.balanceOf(authorization.authorizer) < bill.amount) {
+            revert InsufficientBalance();
+        }
+        
+        // Transfer from authorizer to receiver
+        bool success = token.transferFrom(authorization.authorizer, bill.receiver, bill.amount);
+        if (!success) {
+            revert TransferFailed();
         }
 
         // Update bill status
@@ -311,7 +268,7 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
     /**
      * @dev Internal function to process standard bill payment
      */
-    function _payBill(bytes32 billId, address payer, uint256 msgValue) internal {
+    function _payBill(bytes32 billId, address payer) internal {
         Bill storage bill = bills[billId];
         
         if (bill.receiver == address(0)) {
@@ -322,31 +279,15 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
             revert BillAlreadyPaid();
         }
 
-        if (bill.token == address(0)) {
-            // ETH payment
-            if (msgValue != bill.amount) {
-                revert InvalidAmount();
-            }
-            
-            (bool success, ) = payable(bill.receiver).call{value: bill.amount}("");
-            if (!success) {
-                revert TransferFailed();
-            }
-        } else {
-            // ERC20 payment
-            if (msgValue > 0) {
-                revert InvalidAmount();
-            }
-            
-            IERC20 token = IERC20(bill.token);
-            if (token.balanceOf(payer) < bill.amount) {
-                revert InsufficientBalance();
-            }
-            
-            bool success = token.transferFrom(payer, bill.receiver, bill.amount);
-            if (!success) {
-                revert TransferFailed();
-            }
+        // ERC20 payment only
+        IERC20 token = IERC20(bill.token);
+        if (token.balanceOf(payer) < bill.amount) {
+            revert InsufficientBalance();
+        }
+        
+        bool success = token.transferFrom(payer, bill.receiver, bill.amount);
+        if (!success) {
+            revert TransferFailed();
         }
 
         bill.paid = true;
@@ -459,17 +400,21 @@ contract QuikPay is ReentrancyGuard, AutomationCompatibleInterface {
      * Message: keccak256(abi.encode(receiver, token, chainId, contractAddress)) with EIP-191 prefix.
      */
     function _verifyPayAuthorization(PayAuthorization calldata auth) internal view returns (bool) {
+        // Since personal_sign already applies EIP-191 prefix, we need to reconstruct the exact message that was signed
+        bytes32 innerHash = keccak256(
+            abi.encode(
+                auth.receiver,
+                auth.token,
+                auth.chainId,
+                auth.contractAddress
+            )
+        );
+        
+        // personal_sign creates: keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", innerHash))
         bytes32 messageHash = keccak256(
             abi.encodePacked(
                 "\x19Ethereum Signed Message:\n32",
-                keccak256(
-                    abi.encode(
-                        auth.receiver,
-                        auth.token,
-                        auth.chainId,
-                        auth.contractAddress
-                    )
-                )
+                innerHash
             )
         );
 

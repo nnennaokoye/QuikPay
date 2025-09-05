@@ -1,7 +1,7 @@
 {
-  "name": "ezpay",
+  "name": "quikpay",
   "version": "1.0.0",
-  "description": "Ezpay - Mantle L2 Payment dApp with Smart Contracts and Frontend",
+  "description": "QuikPay - Arbitrum L2 Payment dApp with Smart Contracts and Frontend",
   "private": true,
   "workspaces": [
     "frontend/ui",
@@ -21,7 +21,7 @@
   },
   "keywords": [
     "blockchain",
-    "mantle",
+    "arbitrum",
     "l2",
     "payment",
     "web3",
@@ -30,7 +30,7 @@
     "nextjs",
     "react-native"
   ],
-  "author": "Ezpay Team",
+  "author": "QuikPay Team",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.0",

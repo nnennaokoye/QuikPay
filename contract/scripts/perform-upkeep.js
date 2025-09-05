@@ -18,7 +18,7 @@ async function main() {
     process.exit(1);
   }
   const [contractAddr, a2, a3] = args;
-  const ezpay = await ethers.getContractAt("Ezpay", contractAddr);
+  const quikpay = await ethers.getContractAt("QuikPay", contractAddr);
 
   let performData;
   if (a2 && a3) {
@@ -34,7 +34,7 @@ async function main() {
     process.exit(1);
   }
 
-  const tx = await ezpay.performUpkeep(performData);
+  const tx = await quikpay.performUpkeep(performData);
   console.log("Submitted performUpkeep, tx:", tx.hash);
   const rcpt = await tx.wait();
   console.log("Mined in block:", rcpt.blockNumber);
