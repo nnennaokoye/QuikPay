@@ -70,31 +70,18 @@ export function useQuikPayContract() {
   }
 
   // Pay a bill
-  const payBill = async (billId: string, amount?: string) => {
+  const payBill = async (billId: string) => {
     return writeContract({
       address: QUIKPAY_CONTRACT_ADDRESS,
       abi: QUIKPAY_ABI,
       functionName: 'payBill',
       args: [billId as `0x${string}`],
-      value: amount ? parseEther(amount) : undefined,
-    })
-  }
-
-  // Dynamic ETH payment (payer pays gas)
-  const payDynamicETH = async (auth: PayAuthorization, amountEth: string) => {
-    return writeContract({
-      address: QUIKPAY_CONTRACT_ADDRESS,
-      abi: QUIKPAY_ABI,
-      functionName: 'payDynamicETH',
-      args: [auth],
-      value: parseEther(amountEth),
     })
   }
 
   return {
     createBill,
     payBill,
-    payDynamicETH,
     hash,
     error,
     isPending,

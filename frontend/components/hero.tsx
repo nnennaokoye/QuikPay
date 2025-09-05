@@ -22,7 +22,7 @@ export function Hero() {
           </h1>
 
           <p className="text-lg text-muted-foreground mb-8 leading-relaxed max-w-2xl mx-auto">
-          QuikPay makes crypto payments seamless with gasless transactions on the Arbitrum network. Simply scan and pay in ETH, USDC, USDT or WETH — no hassle, no gas.
+          QuikPay makes crypto payments seamless with gasless transactions on the Arbitrum network. Simply scan and pay in USDC, USDT or WETH — no hassle, no gas.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

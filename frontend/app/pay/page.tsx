@@ -25,7 +25,7 @@ import Link from "next/link"
 
 export default function PayPage() {
   const { address, isConnected } = useAccount()
-  const { payBill, payDynamicETH, isPending, isConfirming, isConfirmed, error, hash } = useQuikPayContract()
+  const { payBill, isPending, isConfirming, isConfirmed, error, hash } = useQuikPayContract()
   
   const [paymentLink, setPaymentLink] = useState("")
   const [copiedLink, setCopiedLink] = useState(false)
@@ -51,7 +51,7 @@ export default function PayPage() {
     const urlParams = new URLSearchParams(window.location.search)
     const billIdParam = urlParams.get("billId")
     const amount = urlParams.get("amount")
-    const token = urlParams.get("token") // symbol like USDC or ETH
+    const token = urlParams.get("token") // symbol like USDC, USDT, WETH
     const desc = urlParams.get("desc")
     const receiver = urlParams.get("receiver")
     const chainId = urlParams.get("chainId")
@@ -676,7 +676,7 @@ export default function PayPage() {
                           {isGaslessFlow ? (
                             <span className="font-semibold text-green-600">$0.00 (Gasless)</span>
                           ) : (
-                            <span className="font-semibold">Network fee applies (native ETH)</span>
+                            <span className="font-semibold">Network fee applies</span>
                           )}
                         </div>
                       </div>
@@ -692,11 +692,11 @@ export default function PayPage() {
                       <div className="text-sm text-muted-foreground bg-muted/40 rounded-md p-3">
                         {isGaslessFlow ? (
                           <span>
-                            This payment uses an ERC-20 permit and is sponsored by QuikPay. Your wallet will not pay gas.
+                            This payment is sponsored by QuikPay. Your wallet will not pay gas fees.
                           </span>
                         ) : (
                           <span>
-                            Native ETH payments require a small network fee from your wallet. Use USDC for gasless payments.
+                            All payments are gasless when using QuikPay's system.
                           </span>
                         )}
                       </div>

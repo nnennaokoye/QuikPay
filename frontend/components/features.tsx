@@ -17,7 +17,7 @@ const features = [
   {
     icon: CreditCard,
     title: "Multi-Token Support",
-    description: "Accept payments in ETH, USDC, and WETH. More tokens coming soon to expand your payment options.",
+    description: "Accept payments in USDC, USDT, and WETH. More tokens coming soon to expand your payment options.",
     color: "from-primary to-secondary",
   },
   

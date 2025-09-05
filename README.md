@@ -31,7 +31,7 @@ Create and receive QR-based payments on Arbitrum Sepolia with gasless ERC‑20 s
 ## Contract (Arbitrum Sepolia)
 - ChainId: 421614
 - Explorer: https://sepolia.arbiscan.io
-- QuikPay: <to be updated after deploy>
+- QuikPay: 0xf2f944Dc08B2852C3Df1729d770B45C6163b6F52
 - Tokens:
   USDC: 0xC46ba842bAD10aAeB501667A80D39EE09BB62A7d
   USDT: 0x9c5C8F3ad18b8D1D32Ea803Aa09A6beA077e9471
@@ -39,7 +39,7 @@ Create and receive QR-based payments on Arbitrum Sepolia with gasless ERC‑20 s
 
 ## Notes
 - Gasless ERC‑20 uses EIP‑2612 Permit + a server relayer at `frontend/app/api/gasless-payment/route.ts` (sponsor pays gas).
-- Native MNT/ETH payments use a regular transaction to `payDynamicETH` (payer covers gas; you can still use QR for easy UX).
+- QuikPay is now ERC20-only for simplified gasless payments.
 - Chainlink Automation is used to expire unpaid bills: `checkUpkeep`/`performUpkeep` are implemented in `contract/contracts/QuikPay.sol`.
 - Network config and addresses: `frontend/lib/contract.ts`.
 
@@ -47,9 +47,7 @@ Create and receive QR-based payments on Arbitrum Sepolia with gasless ERC‑20 s
 1) Open merchant dashboard: run web app, go to `/merchant`.
 2) Create request: choose token (USDC/USDT/WETH), set optional amount/description, generate QR/link.
 3) Share: customer scans QR or opens the link (it encodes receiver, token, chainId, contract, and signature).
-4) Pay:
-   - ERC‑20: client builds an EIP‑2612 Permit; the server relayer calls `payDynamicERC20WithPermit` and pays the gas.
-   - ETH/MNT (native): customer sends a normal tx to `payDynamicETH` with the desired amount.
+4) Pay: client builds an EIP‑2612 Permit; the server relayer calls `payDynamicERC20WithPermit` and pays the gas.
 5) Confirm: view tx on Arbitrum Sepolia explorer; merchant history auto-updates in `/merchant`.
 
 ## Troubleshooting
