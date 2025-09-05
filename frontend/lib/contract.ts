@@ -27,7 +27,7 @@ export const ARBITRUM_SEPOLIA = {
   },
 } as const;
 
-// ERC20 Token addresses on Arbitrum Sepolia
+// ERC20 Token addresses
 export const TOKENS = {
   USDC: '0x6bECb4E157061786FC4Db6276a9036026E38d04F', // MockUSDC
   USDT: '0x6aA627c20dcb561bE8Fbeeff03906905472E2Cb5', // MockUSDT
