@@ -26,20 +26,18 @@ Create and receive QR-based payments on Arbitrum Sepolia with gasless ERC‑20 s
   cd contract
   npm run build
   npm run test
-  # optional (local mocks): node scripts/deploy-mockusdc.js
 
 ## Contract (Arbitrum Sepolia)
 - ChainId: 421614
 - Explorer: https://sepolia.arbiscan.io
 - QuikPay: 0xf2f944Dc08B2852C3Df1729d770B45C6163b6F52
 - Tokens:
-  USDC: 0xC46ba842bAD10aAeB501667A80D39EE09BB62A7d
-  USDT: 0x9c5C8F3ad18b8D1D32Ea803Aa09A6beA077e9471
-  WETH: 0xAC8F7169CE823c86b3411dCD36576dA3f1B82710
+  USDC: 0x6bECb4E157061786FC4Db6276a9036026E38d04F
+  USDT: 0x6aA627c20dcb561bE8Fbeeff03906905472E2Cb5
+  WETH: 0x0FC51934bd03eE04273497A462479280aE7d0084
 
 ## Notes
 - Gasless ERC‑20 uses EIP‑2612 Permit + a server relayer at `frontend/app/api/gasless-payment/route.ts` (sponsor pays gas).
-- QuikPay is now ERC20-only for simplified gasless payments.
 - Chainlink Automation is used to expire unpaid bills: `checkUpkeep`/`performUpkeep` are implemented in `contract/contracts/QuikPay.sol`.
 - Network config and addresses: `frontend/lib/contract.ts`.
 

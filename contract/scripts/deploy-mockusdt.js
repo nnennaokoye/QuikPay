@@ -18,7 +18,7 @@ async function main() {
   await token.waitForDeployment();
 
   const address = await token.getAddress();
-  console.log("✅ MockUSDT deployed at:", address);
+  console.log(" MockUSDT deployed at:", address);
 
   console.log(" Symbol:", await token.symbol());
   console.log(" Decimals:", await token.decimals());
